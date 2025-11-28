@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gmail Dot Generator</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.06);
+    }
+    h1 {
+      font-size: 22px;
+      margin-bottom: 8px;
+    }
+    p {
+      margin-top: 0;
+      color: #555;
+      font-size: 14px;
+    }
+    label {
+      font-weight: 600;
+      font-size: 14px;
+    }
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 10px 12px;
+      margin-top: 6px;
+      margin-bottom: 14px;
+      border-radius: 10px;
+      border: 1px solid #ddd;
+      font-size: 14px;
+    }
+    input[type="number"] {
+      max-width: 150px;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+      margin-bottom: 16px;
+    }
+    .row > div {
+      flex: 1;
+      min-width: 200px;
+    }
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-right: 8px;
+      margin-top: 4px;
+      background: #1877f2;
+      color: #fff;
+      box-shadow: 0 4px 10px rgba(24, 119, 242, 0.25);
+      transition: transform .08s ease, box-shadow .08s ease, background .15s ease;
+    }
+    button.secondary {
+      background: #e4e6eb;
+      color: #111;
+      box-shadow: none;
+    }
+    button.download {
+      background: #00a86b;
+    }
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 14px rgba(24, 119, 242, 0.35);
+    }
+    button.secondary:hover {
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+    }
+    button.download:hover {
+      box-shadow: 0 6px 14px rgba(0, 168, 107, 0.35);
+    }
+    .warning {
+      font-size: 12px;
+      color: #d9534f;
+      margin-top: -8px;
+      margin-bottom: 10px;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 12px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #e7f3ff;
+      color: #1877f2;
+      margin-left: 4px;
+    }
+    #resultInfo {
+      font-size: 13px;
+      margin-top: 10px;
+      margin-bottom: 4px;
+      color: #444;
+    }
+    textarea {
+      width: 100%;
+      min-height: 260px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid #ddd;
+      font-size: 13px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      resize: vertical;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Gmail Dot Generator</h1>
+    <p>Tạo các biến thể email Gmail bằng cách chèn thêm dấu chấm vào phần username.<br>
+       Gmail sẽ bỏ qua dấu chấm đối với <strong>@gmail.com</strong> và <strong>@googlemail.com</strong>.</p>
+
+    <label for="emailInput">Email gốc (ví dụ: <code>abakara288@gmail.com</code>)</label>
+    <input type="text" id="emailInput" placeholder="nhập email gốc của bạn..." />
+
+    <div class="warning">
+      ⚠ Hệ thống sẽ tự bỏ dấu chấm trong phần username trước khi sinh biến thể.
+    </div>
+
+    <div class="row">
+      <div>
+        <label for="randomCount">Số biến thể ngẫu nhiên</label>
+        <input type="number" id="randomCount" min="1" max="1000" value="20" />
+      </div>
+      <div>
+        <span style="font-size:13px;">Tối đa khi sinh tất cả:
+          <span class="badge" id="maxAllLabel">—</span>
+        </span><br>
+        <small style="font-size:11px;color:#777;">
+          Số trường hợp = 2<sup>(n - 1)</sup> với n là độ dài username. Mặc định giới hạn 1024 để tránh quá nặng.
+        </small>
+      </div>
+    </div>
+
+    <button id="btnRandom">Sinh ngẫu nhiên</button>
+    <button id="btnAll" class="secondary">Sinh tất cả (giới hạn)</button>
+    <button id="btnClear" class="secondary">Xoá kết quả</button>
+    <button id="btnDownload" class="download">Tải xuống .txt</button>
+
+    <div id="resultInfo"></div>
+    <textarea id="output" placeholder="Kết quả sẽ xuất hiện ở đây, mỗi email trên 1 dòng..."></textarea>
+  </div>
+
+  <script>
+    function parseEmail(raw) {
+      raw = raw.trim();
+      const idx = raw.indexOf("@");
+      if (idx === -1) return null;
+      const local = raw.slice(0, idx);
+      const domain = raw.slice(idx + 1).toLowerCase();
+      if (!local) return null;
+      return { local, domain };
+    }
+
+    function cleanLocal(local) {
+      // Bỏ các dấu chấm trong username
+      return local.replace(/\./g, "");
+    }
+
+    // Sinh TẤT CẢ biến thể (có giới hạn)
+    function generateAllVariants(local, maxCount) {
+      const n = local.length;
+      if (n === 0) return [];
+      if (n === 1) return [local];
+
+      const positions = n - 1;
+      const total = 1 << positions; // 2^(n-1)
+      const limit = Math.min(total, maxCount);
+
+      const res = [];
+      for (let mask = 0; mask < limit; mask++) {
+        let s = local[0];
+        for (let i = 0; i < positions; i++) {
+          if (mask & (1 << i)) s += ".";
+          s += local[i + 1];
+        }
+        res.push(s);
+      }
+      return res;
+    }
+
+    // Sinh ngẫu nhiên không trùng lặp
+    function generateRandomVariants(local, count) {
+      const n = local.length;
+      if (n === 0) return [];
+      if (n === 1) return [local];
+
+      const positions = n - 1;
+      const total = 1 << positions;
+      const realCount = Math.min(count, total);
+
+      const seen = new Set();
+      const res = [];
+
+      while (res.length < realCount) {
+        const mask = Math.floor(Math.random() * total);
+        if (seen.has(mask)) continue;
+        seen.add(mask);
+
+        let s = local[0];
+        for (let i = 0; i < positions; i++) {
+          if (mask & (1 << i)) s += ".";
+          s += local[i + 1];
+        }
+        res.push(s);
+      }
+      return res;
+    }
+
+    function updateMaxAllLabel() {
+      const emailRaw = document.getElementById("emailInput").value;
+      const parsed = parseEmail(emailRaw);
+      const label = document.getElementById("maxAllLabel");
+      if (!parsed) {
+        label.textContent = "—";
+        return;
+      }
+      const cleaned = cleanLocal(parsed.local);
+      const n = cleaned.length;
+      if (n <= 1) {
+        label.textContent = "1 (n quá ngắn)";
+      } else {
+        const positions = n - 1;
+        const total = 1 << positions;
+        label.textContent = total > 100000 ? total.toLocaleString() + "+" : total.toLocaleString();
+      }
+    }
+
+    document.getElementById("emailInput").addEventListener("input", updateMaxAllLabel);
+
+    document.getElementById("btnRandom").addEventListener("click", () => {
+      const raw = document.getElementById("emailInput").value;
+      const parsed = parseEmail(raw);
+      if (!parsed) {
+        alert("Email không hợp lệ. Vui lòng nhập dạng ten@gmail.com");
+        return;
+      }
+      const cleanedLocal = cleanLocal(parsed.local);
+      if (!cleanedLocal) {
+        alert("Username trống sau khi bỏ dấu chấm.");
+        return;
+      }
+      const count = parseInt(document.getElementById("randomCount").value, 10) || 1;
+      const locals = generateRandomVariants(cleanedLocal, count);
+      const emails = locals.map(l => `${l}@${parsed.domain}`);
+      document.getElementById("output").value = emails.join("\n");
+      document.getElementById("resultInfo").textContent =
+        `Đã sinh ${emails.length} biến thể ngẫu nhiên cho username "${cleanedLocal}".`;
+    });
+
+    document.getElementById("btnAll").addEventListener("click", () => {
+      const raw = document.getElementById("emailInput").value;
+      const parsed = parseEmail(raw);
+      if (!parsed) {
+        alert("Email không hợp lệ. Vui lòng nhập dạng ten@gmail.com");
+        return;
+      }
+      const cleanedLocal = cleanLocal(parsed.local);
+      if (!cleanedLocal) {
+        alert("Username trống sau khi bỏ dấu chấm.");
+        return;
+      }
+      const MAX_ALL = 1024; // bạn có thể tăng nhưng cẩn thận
+      const locals = generateAllVariants(cleanedLocal, MAX_ALL);
+      const emails = locals.map(l => `${l}@${parsed.domain}`);
+      document.getElementById("output").value = emails.join("\n");
+      document.getElementById("resultInfo").textContent =
+        `Đã sinh ${emails.length} biến thể (giới hạn ${MAX_ALL}) cho username "${cleanedLocal}".`;
+    });
+
+    document.getElementById("btnClear").addEventListener("click", () => {
+      document.getElementById("output").value = "";
+      document.getElementById("resultInfo").textContent = "";
+    });
+
+    // 🔽 NÚT TẢI XUỐNG .TXT
+    document.getElementById("btnDownload").addEventListener("click", () => {
+      const text = document.getElementById("output").value.trim();
+      if (!text) {
+        alert("Không có dữ liệu để tải xuống. Hãy tạo danh sách email trước.");
+        return;
+      }
+
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+
+      // tên file: gmail-variants-YYYYMMDD-HHMMSS.txt
+      const now = new Date();
+      const pad = n => n.toString().padStart(2, "0");
+      const fileName =
+        "gmail-variants-" +
+        now.getFullYear() +
+        pad(now.getMonth() + 1) +
+        pad(now.getDate()) + "-" +
+        pad(now.getHours()) +
+        pad(now.getMinutes()) +
+        pad(now.getSeconds()) +
+        ".txt";
+
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
+    // cập nhật label ban đầu
+    updateMaxAllLabel();
+  </script>
+</body>
+</html>
